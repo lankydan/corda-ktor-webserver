@@ -1,23 +1,33 @@
 buildscript {
   ext.ktor_version = '1.2.2'
-  ext.kotlin_version_for_app = '1.3.40'
+  ext.kotlin_version_for_app = '1.3.41'
 
-//  repositories {
-//    mavenCentral()
-//  }
+  repositories {
+    mavenCentral()
+    jcenter()
+  }
 
-//  dependencies {
-//    classpath "org.jetbrains.kotlin:kotlin-allopen:$kotlin_version"
-//  }
+  dependencies {
+    classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version_for_app"
+  }
 }
 
 plugins {
-  id 'org.jetbrains.kotlin.jvm' version '1.3.40'
+  id "application"
+  id "com.github.johnrengelman.shadow" version "5.1.0"
 }
+
+apply plugin: 'java'
+apply plugin: 'kotlin'
 
 java {
   disableAutoTargetJvm()
 }
+
+group 'corda-and-ktor'
+version '1.0.0'
+
+mainClassName = "dev.lankydan.tutorial.server.ServerKt"
 
 kotlin {
   experimental {
@@ -31,11 +41,6 @@ repositories {
   mavenCentral()
   maven { url 'https://software.r3.com/artifactory/corda-releases' }
 }
-
-apply plugin: 'kotlin'
-apply plugin: 'java'
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
 
 dependencies {
   compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version_for_app"
@@ -51,7 +56,6 @@ dependencies {
   implementation ("io.ktor:ktor-jackson:$ktor_version") {
     exclude group: 'com.fasterxml.jackson.module', module: 'jackson-module-kotlin'
   }
-  compile "org.kodein.di:kodein-di-generic-jvm:6.3.0"
   compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
 
   compile project(":contracts")
@@ -61,21 +65,21 @@ dependencies {
 task runPartyAServer(type: JavaExec) {
   classpath = sourceSets.main.runtimeClasspath
   main = 'dev.lankydan.tutorial.server.ServerKt'
-  environment "server.port", "10011"
-  environment "config.rpc.username", "user1"
-  environment "config.rpc.password", "test"
-  environment "config.rpc.host", "localhost"
-  environment "config.rpc.port", "10006"
+  systemProperty "server.port", "10011"
+  systemProperty "config.rpc.username", "user1"
+  systemProperty "config.rpc.password", "test"
+  systemProperty "config.rpc.host", "localhost"
+  systemProperty "config.rpc.port", "10006"
 }
 
 task runPartyBServer(type: JavaExec) {
   classpath = sourceSets.main.runtimeClasspath
   main = 'dev.lankydan.tutorial.server.ServerKt'
-  environment "server.port", "10013"
-  environment "config.rpc.username", "user1"
-  environment "config.rpc.password", "test"
-  environment "config.rpc.host", "localhost"
-  environment "config.rpc.port", "10009"
+  systemProperty "server.port", "10013"
+  systemProperty "config.rpc.username", "user1"
+  systemProperty "config.rpc.password", "test"
+  systemProperty "config.rpc.host", "localhost"
+  systemProperty "config.rpc.port", "10009"
 }
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).all {

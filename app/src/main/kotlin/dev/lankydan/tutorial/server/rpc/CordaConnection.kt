@@ -7,13 +7,12 @@ import net.corda.core.utilities.NetworkHostAndPort
 import javax.annotation.PreDestroy
 
 fun connectToNode(
-  host: String,
-  rpcPort: Int,
-  username: String,
-  password: String
-): CordaRPCOps {
+  host: String = System.getProperty("config.rpc.host"),
+  rpcPort: Int = System.getProperty("config.rpc.port").toInt(),
+  username: String = System.getProperty("config.rpc.username"),
+  password: String = System.getProperty("config.rpc.password")
+): CordaRPCConnection {
   val rpcAddress = NetworkHostAndPort(host, rpcPort)
   val rpcClient = CordaRPCClient(rpcAddress)
-  val rpcConnection = rpcClient.start(username, password)
-  return rpcConnection.proxy
+  return rpcClient.start(username, password)
 }

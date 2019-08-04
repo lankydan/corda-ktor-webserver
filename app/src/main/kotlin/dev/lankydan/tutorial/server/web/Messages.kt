@@ -23,20 +23,20 @@ data class Message(val recipient: String, val contents: String)
 fun Routing.messages(proxy: CordaRPCOps) {
   route("/messages") {
     get("/") {
-      call.respond(HttpStatusCode.OK, proxy.vaultQueryBy<MessageState>().states.map { it.state.data })
+      call.respond(
+        HttpStatusCode.OK,
+        proxy.vaultQueryBy<MessageState>().states.map { it.state.data })
     }
     post("/") {
       val received = call.receive<Message>()
-      UUID.randomUUID().let {
-        try {
-          val message = proxy.startFlow(
-            ::SendMessageFlow,
-            state(proxy, received, it)
-          ).returnValue.getOrThrow().coreTransaction.outputStates.first() as MessageState
-          call.respond(HttpStatusCode.Created, message)
-        } catch (e: Exception) {
-          call.respond(HttpStatusCode.InternalServerError, e.message ?: "Something went wrong")
-        }
+      try {
+        val message = proxy.startFlow(
+          ::SendMessageFlow,
+          state(proxy, received, UUID.randomUUID())
+        ).returnValue.getOrThrow().coreTransaction.outputStates.first() as MessageState
+        call.respond(HttpStatusCode.Created, message)
+      } catch (e: Exception) {
+        call.respond(HttpStatusCode.InternalServerError, e.message ?: "Something went wrong")
       }
     }
   }

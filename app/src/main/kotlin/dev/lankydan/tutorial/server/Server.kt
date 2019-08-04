@@ -2,10 +2,11 @@ package dev.lankydan.tutorial.server
 
 import com.fasterxml.jackson.core.util.DefaultIndenter
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter
-import dev.lankydan.tutorial.server.rpc.NodeRPCConnection
+import com.fasterxml.jackson.databind.ObjectMapper
 import dev.lankydan.tutorial.server.rpc.connectToNode
 import dev.lankydan.tutorial.server.web.messages
 import io.ktor.application.Application
+import io.ktor.application.ApplicationStopped
 import io.ktor.application.install
 import io.ktor.features.CallLogging
 import io.ktor.features.ContentNegotiation
@@ -14,37 +15,28 @@ import io.ktor.jackson.JacksonConverter
 import io.ktor.routing.routing
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
+import io.ktor.server.netty.NettyApplicationEngine
 import net.corda.client.jackson.JacksonSupport
+import net.corda.client.rpc.CordaRPCConnection
 import net.corda.core.messaging.CordaRPCOps
-import org.kodein.di.Kodein
-import org.kodein.di.generic.bind
-import org.kodein.di.generic.instance
-import org.kodein.di.generic.singleton
+import java.util.concurrent.TimeUnit
 
-fun main(args: Array<String>) {
-  val kodein = Kodein {
-    bind<CordaRPCOps>() with singleton {
-      // proxy defined for clarity
-      val proxy: CordaRPCOps = connectToNode(
-        System.getenv("config.rpc.host"),
-        System.getenv("config.rpc.port").toInt(),
-        System.getenv("config.rpc.username"),
-        System.getenv("config.rpc.password")
-      )
-      proxy
-    }
-  }
-  embeddedServer(Netty, port = System.getenv("server.port").toInt()) {
+fun main() {
+  val connection: CordaRPCConnection = connectToNode()
+  embeddedServer(Netty, port = System.getProperty("server.port").toInt()) {
     install(ContentNegotiation) {
-      val proxy by kodein.instance<CordaRPCOps>()
-      cordaJackson(proxy)
+      cordaJackson(connection.proxy)
     }
-    main(kodein)
-  }.start()
+    environment.monitor.subscribe(ApplicationStopped) {
+      println("Time to clean up")
+      // not hit when run through intellij
+      connection.notifyServerAndClose()
+    }
+    module(connection.proxy)
+  }.start().addShutdownHook()
 }
 
-fun Application.main(kodein: Kodein) {
-  val proxy by kodein.instance<CordaRPCOps>()
+fun Application.module(proxy: CordaRPCOps) {
   install(CallLogging)
   routing {
     messages(proxy)
@@ -52,7 +44,7 @@ fun Application.main(kodein: Kodein) {
 }
 
 fun ContentNegotiation.Configuration.cordaJackson(proxy: CordaRPCOps) {
-  val mapper = JacksonSupport.createDefaultMapper(proxy)
+  val mapper: ObjectMapper = JacksonSupport.createDefaultMapper(proxy)
   mapper.apply {
     setDefaultPrettyPrinter(DefaultPrettyPrinter().apply {
       indentArraysWith(DefaultPrettyPrinter.FixedSpaceIndenter.instance)
@@ -61,4 +53,11 @@ fun ContentNegotiation.Configuration.cordaJackson(proxy: CordaRPCOps) {
   }
   val converter = JacksonConverter(mapper)
   register(ContentType.Application.Json, converter)
+}
+
+fun NettyApplicationEngine.addShutdownHook() {
+  Runtime.getRuntime().addShutdownHook(Thread {
+    stop(1, 1, TimeUnit.SECONDS)
+  })
+  Thread.currentThread().join()
 }
