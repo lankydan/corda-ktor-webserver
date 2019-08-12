@@ -19,28 +19,23 @@ import io.ktor.server.netty.NettyApplicationEngine
 import net.corda.client.jackson.JacksonSupport
 import net.corda.client.rpc.CordaRPCConnection
 import net.corda.core.messaging.CordaRPCOps
+import org.slf4j.event.Level
 import java.util.concurrent.TimeUnit
 
 fun main() {
-  val connection: CordaRPCConnection = connectToNode()
-  embeddedServer(Netty, port = System.getProperty("server.port").toInt()) {
-    install(ContentNegotiation) {
-      cordaJackson(connection.proxy)
-    }
-    environment.monitor.subscribe(ApplicationStopped) {
-      println("Time to clean up")
-      // not hit when run through intellij
-      connection.notifyServerAndClose()
-    }
-    module(connection.proxy)
-  }.start().addShutdownHook()
+  embeddedServer(
+    Netty,
+    port = System.getProperty("server.port").toInt(),
+    module = Application::module
+  ).start().addShutdownHook()
 }
 
-fun Application.module(proxy: CordaRPCOps) {
-  install(CallLogging)
-  routing {
-    messages(proxy)
-  }
+fun Application.module() {
+  val connection: CordaRPCConnection = connectToNode()
+  install(CallLogging) { level = Level.INFO }
+  install(ContentNegotiation) { cordaJackson(connection.proxy) }
+  routing { messages(connection.proxy) }
+  addShutdownEvent(connection)
 }
 
 fun ContentNegotiation.Configuration.cordaJackson(proxy: CordaRPCOps) {
@@ -60,4 +55,12 @@ fun NettyApplicationEngine.addShutdownHook() {
     stop(1, 1, TimeUnit.SECONDS)
   })
   Thread.currentThread().join()
+}
+
+fun Application.addShutdownEvent(connection: CordaRPCConnection) {
+  environment.monitor.subscribe(ApplicationStopped) {
+    println("Time to clean up")
+    // not hit when run through intellij
+    connection.notifyServerAndClose()
+  }
 }
